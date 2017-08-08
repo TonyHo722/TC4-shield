@@ -20,10 +20,10 @@
 
 ////////////////////
 // Base configurations (leave only one uncommented)
-//#define CONFIG_PWM // slow PWM on OT1 (heater); fast PWM output (3.922kHz) on IO3 (DC fan); ZCD not required
+#define CONFIG_PWM // slow PWM on OT1 (heater); fast PWM output (3.922kHz) on IO3 (DC fan); ZCD not required
 //#define CONFIG_PAC2 // phase angle control on OT1 and OT2; IO2 used to read the ZCD; IO3 undefined
 //#define CONFIG_PAC2_IO3HTR // phase angle control on OT1, OT2; IO2 reads the req'd ZCD; IO3 reserved for fast PWM output for heater
-#define CONFIG_PAC3 // phase angle control on OT1, OT2; IO3 reads the req'd ZCD; IO3 not available for output
+//#define CONFIG_PAC3 // phase angle control on OT1, OT2; IO3 reads the req'd ZCD; IO3 not available for output
 // end of base configurations
 /////////////////////////////
 
@@ -34,8 +34,8 @@
 ////////////////////
 // LCD Options
 // Comment out non required features
-#define LCD // if output on an LCD screen is desired
-#define LCDAPTER // if the I2C LCDapter board is to be used
+//tony_debug #define LCD // if output on an LCD screen is desired
+//tony_debug #define LCDAPTER // if the I2C LCDapter board is to be used
 //#define LCD_4x20 // if using a 4x20 LCD instead of a 2x16
 
 // AC Power Options
@@ -74,7 +74,7 @@
 
 ////////////////////
 // PID Control Options
-#define PID_CONTROL // comment out to disable PID activation
+//tony_debug #define PID_CONTROL // comment out to disable PID activation
 #define PID_CHAN 2 // physical channel for PID input
 #define CT 1000 // default cycle time for the PID, in ms
 #define PRO 5.00 // initial proportional parameter
@@ -95,8 +95,8 @@
 #define MAX_IO3 100  // Set output % for upper limit for IO3
 
 // cut power to Heater if fan duty is less than HTR_CUTOFF_FAN_VAL (to protect heater in air roaster). Set to 0 for no cutoff
-#define HTR_CUTOFF_FAN_VAL 0 // default
-// #define HTR_CUTOFF_FAN_VAL 10  //optional value
+//#define HTR_CUTOFF_FAN_VAL 0 // default
+#define HTR_CUTOFF_FAN_VAL 10  //optional value
 
 #define FAN_AUTO_COOL 13 // Set fan output duty for auto cool when using PID;STOP command
 
@@ -120,7 +120,8 @@
 #define ROR_FILTER 80 // post-filtering for the computed RoR values
 
 // Thermocouple inputs
-#define NC 4 // maximum number of physical channels on the TC4
+//R02 #define NC 4 // maximum number of physical channels on the TC4
+#define NC 4// maximum number of physical channels on the TC4 //R02
 
 ////////////////////
 // Calibration Values
@@ -147,7 +148,7 @@
 ////////////////////
 // Debuging Options
 // Useful for debugging only -- leave inactive otherwise
-//#define MEMORY_CHK
+//#define MEMORY_CHK //tony_debug
 
 // This turns on the "# xxxxxxx\n" acknowledgements after commands
 //#define ACKS_ON

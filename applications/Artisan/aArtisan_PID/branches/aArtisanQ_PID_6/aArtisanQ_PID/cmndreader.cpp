@@ -592,26 +592,32 @@ boolean pidCmnd::doCommand( CmndParser* pars ) {
       return true;
     }
     else if( strcmp( pars->paramStr(1), "SV" ) == 0 ) {
+      #ifdef PID_CONTROL //tony_debug
       SV = atof( pars->paramStr(2) );
       #ifdef ACKS_ON
       Serial.print(F("# PID setpoint = ")); Serial.println(Setpoint);
       #endif
+      #endif// PID_CONTROL //tony_debug
       return true;
     }
     else if( strcmp( pars->paramStr(1), "CT" ) == 0 ) {
+      #ifdef PID_CONTROL //tony_debug
       uint16_t ct = atof( pars->paramStr(2) );
       myPID.SetSampleTime( ct );
       //looptime = ct;
       #ifdef ACKS_ON
       Serial.print(F("# PID cycle (ms) = ")); Serial.println(ct);
       #endif
+      #endif// PID_CONTROL //tony_debug
       return true;
     }
     else if( strcmp( pars->paramStr(1), "CHAN" ) == 0 ) {
+      #ifdef PID_CONTROL //tony_debug
       pid_chan = atoi( pars->paramStr(2) );
       #ifdef ACKS_ON
       Serial.print(F("# PID channel = ")); Serial.println(pid_chan);
       #endif
+      #endif// PID_CONTROL //tony_debug
       return true;
     }
   }

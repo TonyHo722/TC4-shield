@@ -40,6 +40,7 @@
 // ------------------------------------------------------------------------------------------
 
 // Revision history:
+//R01       major modify
 // 20110408 Created.
 // 20110409 Reversed the BT and ET values in the output stream.
 //          Shortened the banner display time to avoid timing issues with Artisan
@@ -135,7 +136,7 @@
 //          This was causing the pullup on IO3 to be disabled and intefered with use of IO3 as the ZCD input
 // 20161216 Changes to user.h (and others) to implement pre-defined configurations
 
-#define BANNER_ARTISAN "aArtisanQ_PID 6_2_3"
+#define BANNER_ARTISAN "aArtisanQ_PID 6_2_2"
 
 // this library included with the arduino distribution
 #include <Wire.h>
@@ -163,6 +164,7 @@
 #include <thermocouple.h> // type K, type J, and type T thermocouple support
 #include <cADC.h> // MCP3424
 
+
 #ifdef LCD
 #include <cLCD.h> // required only if LCD is used
 #endif
@@ -176,7 +178,7 @@
 #include <mcEEPROM.h>
 mcEEPROM eeprom;
 calBlock caldata;
-
+int32_t tony_v; //tony_debug
 float AT; // ambient temp
 float T[NC];  // final output values referenced to physical channels 0-3
 int32_t ftemps[NC]; // heavily filtered temps
@@ -194,7 +196,7 @@ boolean Cscale = false;
 
 int levelOT1, levelOT2;  // parameters to control output levels
 #if !(defined PHASE_ANGLE_CONTROL && (INT_PIN == 3) )
-int levelIO3;
+int levelIO3=0;  //R02
 #endif
 
 #ifdef MEMORY_CHK
@@ -275,16 +277,58 @@ int LCD_mode = 0;
   #define BACKLIGHT lcd.backlight();
   cLCD lcd; // I2C LCD interface
 #else // parallel interface, standard LiquidCrystal
-  #define BACKLIGHT ;
-  #define RS 2
-  #define ENABLE 4
-  #define D4 7
-  #define D5 8
-  #define D6 12
-  #define D7 13
-  LiquidCrystal lcd( RS, ENABLE, D4, D5, D6, D7 ); // standard 4-bit parallel interface
+ //tony_debug #define BACKLIGHT ;
+//tony_debug  #define RS 2
+//tony_debug  #define ENABLE 4
+//tony_debug  #define D4 7
+//tony_debug  #define D5 8
+//tony_debug  #define D6 12
+//tony_debug  #define D7 13
+//tony_debug  LiquidCrystal lcd( RS, ENABLE, D4, D5, D6, D7 ); // standard 4-bit parallel interface
+  //tony_debug - s
+  #include <LiquidCrystal_I2C.h>
+
+// Set the pins on the I2C chip used for LCD connections:
+//                    addr, en,rw,rs,d4,d5,d6,d7,bl,blpol
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  //
+
+
+ //tony_debug - e
+ 
 #endif
 #endif
+
+ //tony_debug - s
+   #include <LiquidCrystal_I2C.h>
+#include "DHT.h"
+
+ 
+#define DHTPIN 8     // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+
+
+#include "max6675.h"
+int thermoDO = 4;
+int thermoCS_BT = 5;
+int thermoCLK = 6;
+int thermoCS_OT = 7;	//output Temperture (OT)
+#define pwmLED_Yellow 11  // pin 11
+
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  //
+
+int maxHum = 60;
+int maxTemp = 40;
+
+ 
+MAX6675 thermocouple_BT(thermoCLK, thermoCS_BT, thermoDO);
+MAX6675 thermocouple_OT(thermoCLK, thermoCS_OT, thermoDO);
+
+
+
+DHT dht(DHTPIN, DHTTYPE);
+
+ //tony_debug - e
+
 // --------------------------------------------- end LCD interface
 
 // T1, T2 = temperatures x 1000
@@ -302,6 +346,11 @@ float calcRise( int32_t T1, int32_t T2, int32_t t1, int32_t t2 ) {
 // ------------- wrapper for the command interpreter's serial line reader
 void checkSerial() {
   const char* result = ci.checkSerial();
+//tony-debug - S
+//  if( result != NULL )
+//          Serial.print(F("checkSerial, result is not NULL")); //tony_debug
+//tony-debug - E
+  
   if( result != NULL ) { // some things we might want to do after a command is executed
     #if defined LCD && defined COMMAND_ECHO
     lcd.setCursor( 0, 0 ); // echo all commands to the LCD
@@ -341,6 +390,17 @@ float convertUnits ( float t ) {
 // ------------------------------------------------------------------
 void logger() {
 
+//tony-debug - s
+
+    lcd.clear();
+    String gy2 = String("")+"Heater = "+levelOT1;    
+    lcd.print(gy2);
+    lcd.setCursor(0, 1); 
+    String gy1 = String("")+"FAN = "+levelIO3;    
+    lcd.print(gy1);
+
+//tony-debug - e
+
 #ifdef ARTISAN
   // print ambient
   Serial.print( convertUnits( AT ), DP );
@@ -356,6 +416,7 @@ void logger() {
   }
 
 // check to see if PID is running, and output additional values if true
+#ifdef PID  //tony_debug 
   if( myPID.GetMode() != MANUAL ) { // If PID in AUTOMATIC mode
   Serial.print(F(","));
   if( FAN_DUTY < HTR_CUTOFF_FAN_VAL ) { // send 0 if OT1 has been cut off
@@ -370,7 +431,7 @@ void logger() {
     Serial.print( Setpoint );
   }  
   Serial.println();
-
+#endif //PID  //tony_debug 
 #endif
 
 #ifdef ROASTLOGGER
@@ -473,15 +534,99 @@ void get_samples() // this function talks to the amb sensor and ADC via I2C
       
       ftimes[k] = millis(); // record timestamp for RoR calculations
       
-      amb.readSensor(); // retrieve value from ambient temp register
-      v = adc.readuV(); // retrieve microvolt sample from MCP3424
-      tempF = tc->Temp_F( 0.001 * v, amb.getAmbF() ); // convert uV to Celsius
+//tony_debug      amb.readSensor(); // retrieve value from ambient temp register
+//tony_debug      v = adc.readuV(); // retrieve microvolt sample from MCP3424
+//tony_debug - s
+//      Serial.print(F("get_samples tony_v = ")); //tony_debug
+//      Serial.println( tony_v ); //tony_debug
+
+      v = tony_v;	
+      tony_v+=20;
+
+  float h = dht.readHumidity();
+  // Read temperature as Celsius
+  float t = dht.readTemperature();
+  float BT_k = thermocouple_BT.readCelsius();
+  float OT_k = thermocouple_OT.readCelsius();
+  
+#ifdef ARTISAN
+  t = C_TO_F(t);
+  h = C_TO_F(h);
+  BT_k = C_TO_F(BT_k);
+  OT_k = C_TO_F(OT_k);
+  
+#endif
+
+#ifdef ANDROID
+#endif
+
+    AT = t; //tony_debug
+  tempF= t; //tony_debug
+   T[k] = t; //tony_debug
+
+     if (k == 2) {
+      tempF= OT_k; //tony_debug
+      T[k] = OT_k; //tony_debug
+      
+    }
+
+     if (k == 1) {
+      tempF= BT_k; //tony_debug
+      T[k] = BT_k; //tony_debug
+      
+    }
+
+    if (k == 0 ) {
+      tempF= h;
+      T[k] = h;
+      
+    }
+
+    if (k == 3 ) {
+      tempF= t;
+      T[k] = t;
+      
+    }
+
+//R02 - S
+    if (k == 0 ) {
+
+#ifdef ARTISAN
+  t = C_TO_F(levelOT1);
+#else
+  t = levelOT1;
+#endif
+
+      tempF= t;
+      T[k] = t;
+      
+    }
+
+    if (k == 3 ) {
+#ifdef ARTISAN
+  t = C_TO_F(levelIO3);
+#else
+  t = levelIO3;
+#endif
+
+      tempF= t;
+      T[k] = t;
+      
+    }
+    
+//R02 - E
+//      tony_v = tony_v % 200;
+//tony_debug - e      
+//tony_debug      tempF = tc->Temp_F( 0.001 * v, amb.getAmbF() ); // convert uV to Celsius
+
+
 
       // filter on direct ADC readings, not computed temperatures
-      v = fT[k].doFilter( v << 10 );  // multiply by 1024 to create some resolution for filter
-      v >>= 10; 
-      AT = amb.getAmbF();
-      T[k] = tc->Temp_F( 0.001 * v, AT ); // convert uV to Fahrenheit;
+//tony_debug      v = fT[k].doFilter( v << 10 );  // multiply by 1024 to create some resolution for filter
+//tony_debug      v >>= 10; 
+//tony_debug      AT = amb.getAmbF();
+//tony_debug      T[k] = tc->Temp_F( 0.001 * v, AT ); // convert uV to Fahrenheit;
+
 
       ftemps[k] =fRise[k].doFilter( tempF * 1000 ); // heavier filtering for RoR
 
@@ -494,6 +639,23 @@ void get_samples() // this function talks to the amb sensor and ADC via I2C
   first = false;
 };
 
+void updateLCD_tony() {
+
+
+  #ifdef ANALOGUE1
+  #ifdef ANALOGUE2
+
+    lcd.clear();
+    String gy2 = String("")+"Heater = "+levelOT1;    
+    lcd.print(gy2);
+    lcd.setCursor(0, 1); 
+    String gy1 = String("")+"FAN = "+levelIO3;    
+    lcd.print(gy1);
+	
+  #endif // end ifdef ANALOGUE2
+  #endif //ifdef ANALOGUE1
+	
+}
 #ifdef LCD
 // --------------------------------------------
 void updateLCD() {
@@ -1056,8 +1218,21 @@ void outIO3() { // update output for IO3
   else {  // turn OT1 and OT2 back on again if levelIO3 is above cutoff value.
     ssr.Out( levelOT1, levelOT2 );
   }
-  pow = 2.55 * levelIO3;
-  pwmio3.Out( round(pow) );
+//tony_debug   pow = 2.55 * levelIO3;
+  pow = 2.55 * (100- levelIO3);		//tony_debug, IO3 is invert output
+  analogWrite( IO3, round( pow ) );	//analogWrite output 255 means off, output 0 mean max power.
+
+//tony_debug - S
+//LED output
+
+	//pinMode( pwmLED_Red, OUTPUT );
+	pinMode( pwmLED_Yellow, OUTPUT );
+
+	pow = 2.55 * levelIO3;
+  	analogWrite( pwmLED_Yellow, round( pow ) );	
+  	
+//tony_debug - E
+
 #endif // PWM Mode, fan on IO3
 }
 
@@ -1069,6 +1244,17 @@ void outIO3() { // update output for IO3
 //
 void setup()
 {
+  tony_v = 2000; //tony_debug
+  lcd.begin(16, 2);      // 初始化 LCD，一行 16 的字元，共 2 行，預設開啟背光
+  lcd.backlight(); // 開啟背光
+
+  // 輸出初始化文字
+  lcd.setCursor(0, 0); // 設定游標位置在第一行行首
+  lcd.print("R02--20170806----7890123456789");
+  lcd.setCursor(0, 1); // 設定游標位置在第二行行首
+  lcd.print("ABCDEFGABCDEFRGABCDEFGABCDEFG");
+
+  
   delay(100);
   Wire.begin(); 
   Serial.begin(BAUD);
@@ -1142,7 +1328,7 @@ void setup()
 #endif
 // --------------------------
 // modifed 14-Dec-2016 by JGG
-#ifndef CONFIG_PAC3
+#ifdef IO3_HTR_PAC
   pwmio3.Setup( IO3_PCORPWM, IO3_PRESCALE_8 ); // setup pmw frequency ion IO3
 #endif
 // ----------------------------
@@ -1231,6 +1417,8 @@ next_loop_time = millis() + looptime; // needed??
 // -----------------------------------------------------------------
 void loop()
 {
+//  Serial.print(F("test 1\n")); //tony_debug
+
   #ifdef PHASE_ANGLE_CONTROL
   if( ACdetect() ) {
     digitalWrite( LED_PIN, HIGH ); // illuminate the Arduino IDE if ZCD is sending a signal
@@ -1247,10 +1435,14 @@ void loop()
       checktime = now;
     }
   #endif
+
+  //Serial.print(F("test 2")); //tony_debug
   
   // Has a command been received?
   checkSerial();
-  
+
+  //Serial.print(F("test 3")); //tony_debug
+
   // Read temperatures
   get_samples();
 
@@ -1294,7 +1486,12 @@ void loop()
   #ifdef LCD
     updateLCD();
   #endif
-  
+
+
+  //tony_debug - S
+    updateLCD_tony();  
+   //tony_debug - E
+    
   // Send data to Roastlogger if defined
   #if defined ROASTLOGGER
     logger(); // send data every second to Roastlogger every loop (looptime)
