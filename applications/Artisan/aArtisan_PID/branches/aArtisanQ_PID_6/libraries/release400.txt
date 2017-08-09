@@ -1,5 +1,9 @@
+
 release400.txt
 ==============
+
+20170809 TonyHo	Add DHT, MAX6675-library-master, NewliquidCrystal library for my system configuration
+
 
 Release notes for TC4 standard libraries, version 4.00:
  cADC
